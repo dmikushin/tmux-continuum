@@ -22,7 +22,7 @@ fetch_and_run_tmux_resurrect_restore_script() {
 main() {
 	# Advanced edge case handling: auto restore only if this is the only tmux
 	# server. If another tmux server exists, it is assumed auto-restore is not wanted.
-	if auto_restore_enabled && ! another_tmux_server_running_on_startup; then
+	if auto_restore_enabled && ! another_tmux_server_running; then
 		fetch_and_run_tmux_resurrect_restore_script
 	fi
 }

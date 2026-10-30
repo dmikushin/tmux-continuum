@@ -22,28 +22,24 @@ current_tmux_server_pid() {
 		cut -f2 -d","
 }
 
-all_tmux_processes() {
-	# ignores `tmux source-file .tmux.conf` command used to reload tmux.conf
-	local user_id=$(id -u)
-	ps -u $user_id -o "command pid" |
-		\grep "^tmux" |
-		\grep -v "^tmux source"
+current_tmux_server_socket() {
+	echo "$TMUX" |
+		cut -f1 -d","
 }
 
-number_tmux_processes_except_current_server() {
-	all_tmux_processes |
-		\grep -v " $(current_tmux_server_pid)$" |
-		wc -l |
-		sed "s/ //g"
-}
-
-number_current_server_client_processes() {
-	tmux list-clients |
-		wc -l |
-		sed "s/ //g"
-}
-
-another_tmux_server_running_on_startup() {
-	# there are 2 tmux processes (current tmux server + 1) on tmux startup
-	[ "$(number_tmux_processes_except_current_server)" -gt 1 ]
+# A server is another live socket next to ours. Counting `tmux` processes
+# cannot tell servers from clients: every plugin, status job and `run-shell`
+# that calls tmux while the config loads is a short-lived `tmux` process too.
+another_tmux_server_running() {
+	local current_socket="$(current_tmux_server_socket)"
+	local socket
+	for socket in "$(dirname "$current_socket")"/*; do
+		[ -S "$socket" ] && [ "$socket" != "$current_socket" ] || continue
+		# A refused connection is a stale socket; a hung server still exists.
+		timeout 2 tmux -S "$socket" list-sessions >/dev/null 2>&1
+		case $? in
+			0|124) return 0 ;;
+		esac
+	done
+	return 1
 }
